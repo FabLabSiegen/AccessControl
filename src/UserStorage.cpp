@@ -1,8 +1,7 @@
 #include "UserStorage.hpp"
 
 UserStorage::UserStorage()
-    : _slotIndex{ false, },
-      _slots{ { 0x00, }, }
+    : _slots{ { 0x00, }, }
 {
 }
 
@@ -14,7 +13,6 @@ void UserStorage::begin()
 {
     EEPROM.begin(EEPROM_SIZE);
 
-    readSlotIndex();
     readSlots();
 }
 
@@ -25,9 +23,9 @@ void UserStorage::end()
 
 void UserStorage::printUsers()
 {
-    for (int i = 0; i < TOTAL_SLOTS; i++)
+    for (int i = 0; i < SLOTS_COUNT; i++)
     {
-        if (_slotIndex[i])
+        if (getFlag(i, USED_FLAG))
         {
             Serial.print("Slot ");
             Serial.print(i);
@@ -43,7 +41,7 @@ void UserStorage::printUsers()
 int UserStorage::addUser(byte *uid)
 {
     // alreay in list?
-    for (int i = 0; i < TOTAL_SLOTS; i++)
+    for (int i = 0; i < SLOTS_COUNT; i++)
     {
         bool sameSame = true;
 
@@ -64,9 +62,9 @@ int UserStorage::addUser(byte *uid)
     int freeSlot = -1;
 
     // find next free slot
-    for (int i = 0; i < TOTAL_SLOTS; i++)
+    for (int i = 0; i < SLOTS_COUNT; i++)
     {
-        if (!_slotIndex[i])
+        if (!getFlag(i, USED_FLAG))
         {
             freeSlot = i;
         }
@@ -77,15 +75,14 @@ int UserStorage::addUser(byte *uid)
         return SLOTS_EXCEEDED;
     }
 
-    _slotIndex[freeSlot] = true;
+    setFlag(freeSlot, USED_FLAG, true);
 
     for (int i = 0; i < UID_SIZE; i++)
     {
         _slots[freeSlot][i] = uid[i];
     }
 
-    writeSlotIndexForSlot(freeSlot);
-    writeSlotsForSlot(freeSlot);
+    writeSlot(freeSlot);
 
     return SUCCESSFULLY_ADDED;
 }
@@ -93,7 +90,7 @@ int UserStorage::addUser(byte *uid)
 int UserStorage::removeUser(byte *uid)
 {
     // alreay in list?
-    for (int i = 0; i < TOTAL_SLOTS; i++)
+    for (int i = 0; i < SLOTS_COUNT; i++)
     {
         bool sameSame = true;
 
@@ -107,14 +104,13 @@ int UserStorage::removeUser(byte *uid)
 
         if (sameSame)
         {
-            _slotIndex[i] = false;
+            setFlag(i, USED_FLAG, false);
 
             for (int j = 0; i < UID_SIZE; j++)
             {
                 _slots[i][j] = 0x00;
 
-                writeSlotIndexForSlot(i);
-                writeSlotsForSlot(i);
+                writeSlot(i);
             }
 
             return SUCCESSFULLY_REMOVED;
@@ -124,71 +120,38 @@ int UserStorage::removeUser(byte *uid)
     return NO_USER_TO_REMOVE;
 }
 
-void UserStorage::readSlotIndex()
+bool UserStorage::getFlag(int slot, int flag)
 {
-    for (int i = 0; i < SLOT_INDEX_SIZE; i++)
-    {
-        byte eepromValue = EEPROM.read(i);
-
-        for (int j = 0; j < 8; j++)
-        {
-            _slotIndex[i * 8 + j] = bool(eepromValue >> j);
-        }
-    }
+    return bool(_slots[slot][FLAGS_BYTE] & flag);
 }
 
-void UserStorage::writeSlotIndexForSlot(int slot)
+void UserStorage::setFlag(int slot, int flag, bool value)
 {
-    byte newEepromValue = 0x00;
-
-    for (int j = 0; j < 8; j++)
-    {
-        newEepromValue |= (_slotIndex[slot - slot % 8 + j] ? 1 : 0) << j;
-    }
-
-    EEPROM.write(SLOT_INDEX_SIZE + slot * SLOT_SIZE, newEepromValue);
-
-    EEPROM.commit();
-}
-
-void UserStorage::writeSlotIndex()
-{
-    for (int i = 0; i < SLOT_INDEX_SIZE; i++)
-    {
-        byte newEepromValue = 0x00;
-
-        for (int j = 0; j < 8; j++)
-        {
-            newEepromValue |= (_slotIndex[i * 8 + j] ? 1 : 0) << j;
-        }
-
-        EEPROM.write(i, newEepromValue);
-    }
-
-    EEPROM.commit();
+    _slots[slot][FLAGS_BYTE] &= ~flag;
+    _slots[slot][FLAGS_BYTE] |= value ? flag : 0x00;
 }
 
 void UserStorage::readSlots()
 {
-    for (int i = 0; i < SLOTS_SIZE; i++)
+    for (int i = 0; i < SLOTS_COUNT; i++)
     {
-        _slots[i / SLOT_SIZE][i % SLOT_SIZE] = EEPROM.read(SLOT_INDEX_SIZE + i);
+        _slots[i / SLOT_SIZE][i % SLOT_SIZE] = EEPROM.read(i);
     }
 }
 
-void UserStorage::writeSlotsForSlot(int slot)
+void UserStorage::writeSlot(int slot)
 {
-    for (int i = 0; i < SLOT_SIZE; i++)
+    for (int i = 0; i < SLOTS_COUNT * SLOT_SIZE; i++)
     {
-        EEPROM.write(SLOT_INDEX_SIZE + slot * SLOT_SIZE + i, _slots[slot][i]);
+        EEPROM.write(slot * SLOT_SIZE + i, _slots[slot][i]);
     }
 }
 
 void UserStorage::writeSlots()
 {
-    for (int i = 0; i < SLOTS_SIZE; i++)
+    for (int i = 0; i < SLOTS_COUNT * SLOT_SIZE; i++)
     {
-        EEPROM.write(SLOT_INDEX_SIZE + i, _slots[i / SLOT_SIZE][i % SLOT_SIZE]);
+        EEPROM.write(i, _slots[i / SLOT_SIZE][i % SLOT_SIZE]);
     }
 }
 

@@ -8,9 +8,11 @@
 #define SLOT_SIZE   12
 #define UID_SIZE    7
 
-#define TOTAL_SLOTS     8 * EEPROM_SIZE / (1 + 8 * UID_SIZE)
-#define SLOT_INDEX_SIZE TOTAL_SLOTS / 8
-#define SLOTS_SIZE      TOTAL_SLOTS * SLOT_SIZE
+#define FLAGS_BYTE  11
+#define USED_FLAG   0x01
+#define ADMIN_FLAG  0x02
+
+#define SLOTS_COUNT EEPROM_SIZE / SLOT_SIZE
 
 #define ALREADY_REGISTERED   -1
 #define SLOTS_EXCEEDED       -2
@@ -33,19 +35,17 @@ public:
     int removeUser(byte *uid);
 
 private:
-    void readSlotIndex();
-    void writeSlotIndexForSlot(int slot);
-    void writeSlotIndex();
+    bool getFlag(int slot, int flag);
+    void setFlag(int slot, int flag, bool value);
 
     void readSlots();
-    void writeSlotsForSlot(int slot);
+    void writeSlot(int slot);
     void writeSlots();
 
     void printBytes(byte *buffer, byte bufferSize);
 
 private:
-    bool _slotIndex[TOTAL_SLOTS];
-    byte _slots[TOTAL_SLOTS][SLOT_SIZE];
+    byte _slots[SLOTS_COUNT][SLOT_SIZE];
 };
 
 extern UserStorage Users;
